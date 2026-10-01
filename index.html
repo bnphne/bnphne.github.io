@@ -119,7 +119,17 @@ const ABI = [
 const $ = (id) => document.getElementById(id);
 const log = (msg) => { $("log").textContent = String(msg); };
 function mod(n, m) { return ((n % m) + m) % m; }
-function inv(a) { return mod(a, Q) ** (Q - 2n) % Q; }
+function modPow(base, exp, m) {
+  let result = 1n;
+  base = mod(base, m);
+  while (exp > 0n) {
+    if (exp & 1n) result = (result * base) % m;
+    base = (base * base) % m;
+    exp >>= 1n;
+  }
+  return result;
+}
+function inv(a) { return modPow(a, Q - 2n, Q); }
 function add(p, o) {
   if (!p) return o;
   if (!o) return p;
