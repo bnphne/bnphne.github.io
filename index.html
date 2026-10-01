@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BurnerPhone</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.5/ethers.umd.min.js"></script>
+  <style>
+    :root { color-scheme: dark; --ink: #f4f0e4; --muted: #b7b09c; --line: #2c311f; --card: #161910; --yellow: #e6ff4d; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 16px/1.5 ui-sans-serif, system-ui, sans-serif; background: #0d0f0a; color: var(--ink); }
+    header { text-align: center; padding: 56px 20px 28px; }
+    header p { max-width: 560px; margin: 10px auto 0; color: var(--muted); }
+    h1 { margin: 0; font-size: clamp(40px, 7vw, 72px); letter-spacing: -0.04em; }
+    h1 span { color: var(--yellow); }
+    nav { display: flex; justify-content: center; align-items: center; gap: 14px; margin-top: 22px; }
+    #account { color: var(--muted); font-size: 13px; max-width: 420px; overflow: hidden; text-overflow: ellipsis; }
+    main { max-width: 1040px; margin: 0 auto; padding: 10px 20px 72px; }
+    .grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 16px; }
+    .panel { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 22px; }
+    h2 { margin: 0 0 6px; font-size: 22px; }
+    .lede { color: var(--muted); margin: 0 0 16px; }
+    label { display: block; margin: 12px 0 6px; color: #9c967f; font-size: 13px; }
+    input { width: 100%; background: #10130c; color: var(--ink); border: 1px solid #3a412c; border-radius: 10px; padding: 12px; font: inherit; }
+    button { background: var(--yellow); color: #172000; border: 0; border-radius: 999px; padding: 12px 18px; font-weight: 700; cursor: pointer; }
+    button.ghost { background: transparent; color: var(--yellow); border: 1px solid #5c6a2a; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+    pre { white-space: pre-wrap; word-break: break-all; background: #10130c; border-radius: 12px; padding: 12px; color: #d9d3c2; min-height: 72px; }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 18px 0 22px; }
+    .step { border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+    .step b { display: block; color: var(--yellow); font-size: 13px; margin-bottom: 4px; }
+    .warn { color: #f0c36a; font-size: 14px; }
+    footer { max-width: 1040px; margin: 0 auto; padding: 0 20px 48px; color: #8d8774; font-size: 13px; }
+    footer h2 { color: #c9c2b0; font-size: 16px; }
+    @media (max-width: 800px) { .grid, .steps { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Burner<span>Phone</span></h1>
+  <p>Deposit any amount. It joins the open cohort for that exact amount. A note can be spent only after 64 equal deposits have sealed the cohort and the delay has passed.</p>
+  <nav>
+    <button id="connect" type="button">Connect MetaMask</button>
+    <span id="account">No wallet connected</span>
+  </nav>
+</header>
+<main>
+  <section class="steps">
+    <div class="step"><b>01</b>Connect an injected wallet. MetaMask, Rabby, or any browser wallet that provides web3.</div>
+    <div class="step"><b>02</b>Deposit. The page creates the secret locally and sends only the public key.</div>
+    <div class="step"><b>03</b>Withdraw through a relayer wallet to a fresh address after the cohort seals.</div>
+  </section>
+  <section class="grid">
+    <article class="panel">
+      <h2>Deposit</h2>
+      <p class="lede">The secret is shown once after confirmation. Save it offline. This page does not store it.</p>
+      <label>Amount (ETH)</label>
+      <input id="amount" value="1" />
+      <div class="actions"><button id="deposit" type="button">Generate secret and deposit</button></div>
+      <p class="warn">Losing the secret makes the note unspendable.</p>
+      <pre id="note">No deposit yet.</pre>
+    </article>
+    <article class="panel">
+      <h2>Cohort</h2>
+      <p class="lede">Equal amounts share a cohort. A unique amount does not mix with a different amount.</p>
+      <label>Amount to look up (ETH)</label>
+      <input id="lookupAmount" value="1" />
+      <div class="actions"><button id="lookup" class="ghost" type="button">Read open cohort</button></div>
+      <pre id="cohort">Not loaded.</pre>
+    </article>
+  </section>
+  <section class="panel" style="margin-top:16px">
+    <h2>Withdraw</h2>
+    <p class="lede">The connected wallet pays gas and fronts the cover note. It cannot be the recipient, and it cannot have deposited in this cohort.</p>
+    <div class="grid">
+      <div>
+        <label>Secret</label>
+        <input id="secret" />
+        <label>Cohort id</label>
+        <input id="cohortId" value="1" />
+        <label>Recipient</label>
+        <input id="recipient" placeholder="0x..." />
+      </div>
+      <div>
+        <label>Relayer fee (ETH)</label>
+        <input id="fee" value="0" />
+        <label>Cover amount (ETH)</label>
+        <input id="cover" value="0.1" />
+        <div class="actions"><button id="withdraw" type="button">Build ring and withdraw</button></div>
+      </div>
+    </div>
+  </section>
+  <section class="panel" style="margin-top:16px">
+    <h2>Status</h2>
+    <pre id="log">Waiting.</pre>
+  </section>
+</main>
+<footer>
+  <h2>Legal notice</h2>
+  <p>BurnerPhone is open-source software provided as is, without warranty of any kind. Use is at your own risk. The authors and publishers do not operate a money service, do not custody funds, and cannot reverse, freeze, or recover a transaction. A lost secret makes the related note unspendable.</p>
+  <p>You are responsible for complying with the laws that apply to you, including sanctions, anti-money-laundering, counter-terrorist-financing, tax, and financial-services rules. Do not route illegal funds, proceeds of crime, or funds from fraud, theft, ransomware, or any other unlawful source through Burner Phone. Do not use it to evade sanctions or to conceal a transaction you are legally required to report.</p>
+  <p>To the maximum extent permitted by law, the authors, contributors, and publishers disclaim all liability for any claim, loss, or damage arising from use of this software, including loss of funds, a failed withdrawal, a third party's use, or any unlawful use by a user. You use it only on your own responsibility. If you do not accept that, do not use the page and do not send a transaction.</p>
+</footer>
+<script>
+const CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000000";
+const R = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+const Q = 21888242871839275222246405745257275088696311157297823662689037894645226208583n;
+const G = [1n, 2n];
+const ABI = [
+  "function deposit(uint256 px, uint256 py) payable",
+  "function withdraw((uint32 cohortId,uint256 c0,uint256 ix,uint256 iy,uint256 coverX,uint256 coverY,address recipient,uint256 fee) e, uint256[64] s) payable",
+  "function feeEnabled() view returns (bool)",
+  "function openCohortFor(uint256 amount) view returns (uint32)",
+  "function openIndex(uint32 cohortId) view returns (uint32)",
+  "function cohortSealed(uint32 cohortId) view returns (bool)",
+  "function cohortSealedAt(uint32 cohortId) view returns (uint256)",
+  "function cohortKey(uint32 cohortId, uint32 index) view returns (uint256 x, uint256 y)"
+];
+const $ = (id) => document.getElementById(id);
+const log = (msg) => { $("log").textContent = String(msg); };
+function mod(n, m) { return ((n % m) + m) % m; }
+function inv(a) { return mod(a, Q) ** (Q - 2n) % Q; }
+function add(p, o) {
+  if (!p) return o;
+  if (!o) return p;
+  const [x1, y1] = p, [x2, y2] = o;
+  if (x1 === x2 && (y1 + y2) % Q === 0n) return null;
+  const lam = p[0] === o[0] && p[1] === o[1] ? (3n * x1 * x1 * inv(2n * y1)) % Q : ((y2 - y1) * inv(x2 - x1)) % Q;
+  const x3 = mod(lam * lam - x1 - x2, Q);
+  return [x3, mod(lam * (x1 - x3) - y1, Q)];
+}
+function mul(k, p = G) {
+  let acc = null, base = p, n = mod(k, R);
+  while (n) { if (n & 1n) acc = add(acc, base); base = add(base, base); n >>= 1n; }
+  return acc;
+}
+function randomSecret() {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  let n = 0n;
+  for (const b of bytes) n = (n << 8n) + BigInt(b);
+  n = mod(n, R);
+  return n === 0n ? 1n : n;
+}
+function word(n) { return ethers.zeroPadValue(ethers.toBeHex(n), 32); }
+function hashToPoint(p) { return mul(BigInt(ethers.keccak256(ethers.concat([word(p[0]), word(p[1])]))) % R); }
+function challenge(message, l, right, i) {
+  return BigInt(ethers.keccak256(ethers.concat([message, word(l[0]), word(l[1]), word(right[0]), word(right[1]), word(i)]))) % R;
+}
+function ringSign(keys, j, sk, message) {
+  const hp = hashToPoint(keys[j]);
+  const image = mul(sk, hp);
+  const u = randomSecret();
+  const c = new Array(keys.length);
+  const s = new Array(keys.length);
+  let idx = (j + 1) % keys.length;
+  c[idx] = challenge(message, mul(u), mul(u, hp), j);
+  while (idx !== j) {
+    s[idx] = randomSecret();
+    const l = add(mul(s[idx]), mul(c[idx], keys[idx]));
+    const right = add(mul(s[idx], hashToPoint(keys[idx])), mul(c[idx], image));
+    const next = (idx + 1) % keys.length;
+    c[next] = challenge(message, l, right, idx);
+    idx = next;
+  }
+  s[j] = mod(u - c[j] * sk, R);
+  return { c0: c[0], s, image };
+}
+let provider, signer, user;
+async function connect() {
+  const injected = window.ethereum;
+  if (!injected) {
+    $("account").textContent = "No wallet injected. Install MetaMask, then refresh.";
+    throw new Error("No injected wallet. Install MetaMask and open this page over HTTPS.");
+  }
+  if (typeof ethers === "undefined") {
+    throw new Error("ethers.js did not load. Check that the server allows the cdnjs script.");
+  }
+  $("account").textContent = "Waiting for MetaMask...";
+  const accounts = await injected.request({ method: "eth_requestAccounts" });
+  if (!accounts || !accounts.length) throw new Error("MetaMask returned no account.");
+  provider = new ethers.BrowserProvider(injected);
+  signer = await provider.getSigner();
+  user = accounts[0];
+  $("account").textContent = user;
+  $("connect").textContent = "Wallet connected";
+  if (!injected._burnerBound) {
+    injected.on?.("accountsChanged", onAccountsChanged);
+    injected._burnerBound = true;
+  }
+}
+function onAccountsChanged(accounts) {
+  user = accounts && accounts[0] ? accounts[0] : "";
+  $("account").textContent = user || "No wallet connected";
+  if (user && window.ethereum && typeof ethers !== "undefined") {
+    provider = new ethers.BrowserProvider(window.ethereum);
+    provider.getSigner().then((s) => { signer = s; }).catch((e) => log(e.message));
+  }
+}
+function contract() {
+  if (CONTRACT_ADDRESS === "0x0000000000000000000000000000000000000000") throw new Error("Set CONTRACT_ADDRESS in the page script before deploying it.");
+  return new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+}
+$("connect").addEventListener("click", () => {
+  connect().catch((e) => {
+    const msg = e.shortMessage || e.message || "Wallet request failed";
+    $("account").textContent = msg;
+    log(msg);
+  });
+});
+$("deposit").onclick = async () => {
+  try {
+    if (!signer) await connect();
+    const c = contract();
+    const sk = randomSecret();
+    const point = mul(sk);
+    log("Waiting for wallet confirmation...");
+    const tx = await c.deposit(point[0], point[1], { value: ethers.parseEther($("amount").value) });
+    const receipt = await tx.wait();
+    $("note").textContent = ["Save this secret offline. It is not recoverable.", "secret: " + sk.toString(), "px: " + point[0].toString(), "py: " + point[1].toString(), "tx: " + receipt.hash].join("\n");
+    log("Deposit confirmed.");
+  } catch (e) { log(e.shortMessage || e.message); }
+};
+$("lookup").onclick = async () => {
+  try {
+    if (!signer) await connect();
+    const c = contract();
+    const id = await c.openCohortFor(ethers.parseEther($("lookupAmount").value));
+    if (id === 0n) { $("cohort").textContent = "No open cohort for that amount."; return; }
+    const [filled, sealed, sealedAt] = await Promise.all([c.openIndex(id), c.cohortSealed(id), c.cohortSealedAt(id)]);
+    $("cohort").textContent = ["cohort: " + id, "filled: " + filled + " / 64", "sealed: " + sealed, "sealed at: " + (sealed ? new Date(Number(sealedAt) * 1000).toISOString() : "not yet")].join("\n");
+  } catch (e) { log(e.shortMessage || e.message); }
+};
+$("withdraw").onclick = async () => {
+  try {
+    if (!signer) await connect();
+    const c = contract();
+    const cohortId = BigInt($("cohortId").value);
+    if (!(await c.cohortSealed(cohortId))) throw new Error("Cohort is not sealed. It needs 64 deposits of the same amount.");
+    const sk = BigInt($("secret").value.trim());
+    const mine = mul(sk);
+    const keys = [];
+    let j = -1;
+    for (let i = 0; i < 64; i++) {
+      const pt = await c.cohortKey(cohortId, i);
+      keys.push([pt.x, pt.y]);
+      if (pt.x === mine[0] && pt.y === mine[1]) j = i;
+    }
+    if (j < 0) throw new Error("That secret is not a key in this cohort.");
+    const coverSk = randomSecret();
+    const cover = mul(coverSk);
+    const fee = ethers.parseEther($("fee").value || "0");
+    const recipient = $("recipient").value.trim();
+    const message = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
+      ["string","string","uint256","address","uint32","address","address","uint256","uint256","uint256","uint256","uint256","bool"],
+      ["BurnerPhone.v1", "withdraw", (await provider.getNetwork()).chainId, await c.getAddress(), cohortId, recipient, user, fee, cover[0], cover[1], 0, 0, await c.feeEnabled()]
+    ));
+    log("Building the ring. This can take a minute.");
+    const proof = ringSign(keys, j, sk, message);
+    const tx = await c.withdraw({ cohortId, c0: proof.c0, ix: proof.image[0], iy: proof.image[1], coverX: cover[0], coverY: cover[1], recipient, fee }, proof.s, { value: ethers.parseEther($("cover").value) });
+    const receipt = await tx.wait();
+    log("Withdrawal confirmed: " + receipt.hash + "\nCover secret (save it): " + coverSk.toString());
+  } catch (e) { log(e.shortMessage || e.message); }
+};
+</script>
+</body>
+</html>
