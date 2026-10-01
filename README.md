@@ -1,4 +1,4 @@
-# burnerphone
+# BurnerPhone
 BurnerPhone is open-source software
 
 Legal notice
